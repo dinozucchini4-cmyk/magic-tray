@@ -26,15 +26,17 @@ public class TrackpadControlBatteryDeviceTests
     }
 
     [Theory]
-    [InlineData(false, 52u, 4u, 5)]
-    [InlineData(true, 52u, 3u, 0)]
-    [InlineData(true, 101u, 4u, 0)]
-    [InlineData(true, uint.MaxValue, 0u, 0)]
+    [InlineData(false, 52u, 0u, 2, -1)] // control device is absent
+    [InlineData(false, 52u, 0u, 3, -1)] // path is absent
+    [InlineData(false, 52u, 0u, 5, -2)] // access denied
+    [InlineData(true, 52u, 3u, 0, -2)] // truncated result
+    [InlineData(true, 101u, 4u, 0, -2)] // impossible percentage
+    [InlineData(true, uint.MaxValue, 0u, 0, -2)]
     public void NormalizeRejectsFailedShortOrOutOfRangeResults(
-        bool success, uint rawPercent, uint bytesReturned, int errorCode)
+        bool success, uint rawPercent, uint bytesReturned, int errorCode, int expected)
     {
         var reply = new TrackpadBatteryControlReply(success, rawPercent, bytesReturned, errorCode);
-        Assert.Equal(-2, TrackpadControlBatteryDevice.Normalize(reply));
+        Assert.Equal(expected, TrackpadControlBatteryDevice.Normalize(reply));
     }
 
     [Fact]
