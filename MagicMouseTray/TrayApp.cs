@@ -1493,6 +1493,31 @@ internal sealed class TrayApp : IDisposable
         }
     }
 
+    async Task RefreshBatteryAfterBrokerStartsAsync()
+    {
+        // The UAC prompt/process start is asynchronous with respect to the tray's
+        // polling cycle. Wait briefly for the read-only named-pipe endpoint, then
+        // trigger one fresh cycle instead of asking the user to wait for the next
+        // adaptive battery interval.
+        for (int attempt = 0; attempt < 16; attempt++)
+        {
+            if (TrackpadBatteryBroker.IsRunning())
+            {
+                _poller.RefreshNow();
+                return;
+            }
+
+            await Task.Delay(250);
+        }
+
+        Logger.Log("TRACKPAD_BATTERY_BROKER_START_TIMEOUT");
+        System.Windows.Forms.MessageBox.Show(
+            "The elevated helper did not become available. No driver or registry changes were made.",
+            "Trackpad battery bridge",
+            System.Windows.Forms.MessageBoxButtons.OK,
+            System.Windows.Forms.MessageBoxIcon.Warning);
+    }
+
     ToolStripMenuItem BuildDeviceRow(string name, int pct, DeviceKind kind, string pid)
     {
         var health = FindHealth(pid);
@@ -1588,6 +1613,33 @@ internal sealed class TrayApp : IDisposable
             bootCamp.Click += (_, _) =>
                 RunDriverAction(() => DriverInstaller.OfferTrackpadV1BootCamp(offerPid));
             item.DropDownItems.Add(bootCamp);
+        }
+
+        if (kind == DeviceKind.MagicTrackpadV2 &&
+            string.Equals(pid, "0265", StringComparison.OrdinalIgnoreCase))
+        {
+            var batteryBridge = new ToolStripMenuItem(
+                TrayMenu.MenuText("Enable Trackpad battery bridge (admin approval)"));
+            batteryBridge.ToolTipText =
+                "Starts a separate elevated helper for the read-only Trackpad battery query. The tray stays unelevated.";
+            batteryBridge.Click += (_, _) =>
+            {
+                if (!TrackpadBatteryBroker.TryStartElevated(out var message))
+                {
+                    System.Windows.Forms.MessageBox.Show(
+                        message, "Trackpad battery bridge",
+                        System.Windows.Forms.MessageBoxButtons.OK,
+                        System.Windows.Forms.MessageBoxIcon.Information);
+                    return;
+                }
+
+                System.Windows.Forms.MessageBox.Show(
+                    message, "Trackpad battery bridge",
+                    System.Windows.Forms.MessageBoxButtons.OK,
+                    System.Windows.Forms.MessageBoxIcon.Information);
+                _ = RefreshBatteryAfterBrokerStartsAsync();
+            };
+            item.DropDownItems.Add(batteryBridge);
         }
 
         if (TrayMenu.IsV3(kind, pid))

@@ -10,7 +10,26 @@ internal static class DeviceRegistry
     /// Matching priority: mouse VID/PID checked first, then keyboard VID/PID.
     /// </summary>
     public static IReadOnlyList<IBatteryDevice> Discover(bool enableThirdParty = false)
-        => DiscoverFromPaths(HidNative.EnumerateHidPaths(), enableThirdParty);
+    {
+        var devices = DiscoverFromPaths(HidNative.EnumerateHidPaths(), enableThirdParty);
+        return AddTrackpadControlProviderIfPresent(devices);
+    }
+
+    // Keep the normal HID implementation and add the driver's independent control
+    // endpoint as a second candidate for the same physical Trackpad. AdaptivePoller
+    // groups candidates by DeviceName and prefers a real percentage over sentinels.
+    // This provider is intentionally added only to the live discovery flow so
+    // DiscoverFromPaths remains deterministic and hardware-independent in unit tests.
+    internal static IReadOnlyList<IBatteryDevice> AddTrackpadControlProviderIfPresent(
+        IReadOnlyList<IBatteryDevice> devices)
+    {
+        if (!devices.Any(device => device.Kind == DeviceKind.MagicTrackpadV2))
+            return devices;
+
+        var result = devices.ToList();
+        result.Add(new TrackpadControlBatteryDevice());
+        return result;
+    }
 
     // Test hook - same classify rules as Discover, no live HID scan.
     internal static IReadOnlyList<IBatteryDevice> DiscoverFromPaths(
