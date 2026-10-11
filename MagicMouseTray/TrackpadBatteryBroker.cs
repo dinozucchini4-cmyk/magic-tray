@@ -131,13 +131,22 @@ internal static class TrackpadBatteryBroker
 
         try
         {
-            Process.Start(new ProcessStartInfo
+            var startInfo = new ProcessStartInfo
             {
                 FileName = executable,
-                Arguments = BrokerArgument,
                 UseShellExecute = true,
                 Verb = "runas"
-            });
+            };
+
+            // A published single-file build runs its own EXE. When launched under
+            // dotnet run, ProcessPath is dotnet.exe, so include the entry assembly.
+            if (Path.GetFileNameWithoutExtension(executable).Equals("dotnet", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(System.Reflection.Assembly.GetEntryAssembly()?.Location))
+            {
+                startInfo.ArgumentList.Add(System.Reflection.Assembly.GetEntryAssembly()!.Location);
+            }
+            startInfo.ArgumentList.Add(BrokerArgument);
+            Process.Start(startInfo);
 
             message = "The elevated battery bridge was requested. Approve the Windows prompt, then choose Refresh Now.";
             return true;
@@ -168,7 +177,7 @@ internal static class TrackpadBatteryBroker
                     PipeDirection.InOut,
                     maxNumberOfServerInstances: 1,
                     PipeTransmissionMode.Byte,
-                    PipeOptions.Asynchronous);
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
 
                 await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
 
@@ -208,7 +217,14 @@ internal static class TrackpadBatteryBroker
             catch (Exception ex)
             {
                 Logger.Log($"TRACKPAD_BATTERY_BROKER_ERROR err={ex.GetBaseException().Message}");
-                await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    await Task.Delay(250, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
             }
         }
 
