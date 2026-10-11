@@ -39,6 +39,34 @@ public class TrackpadControlBatteryDeviceTests
         Assert.Equal(expected, TrackpadControlBatteryDevice.Normalize(reply));
     }
 
+    [Theory]
+    [InlineData("OK|0", true, 0u, 0)]
+    [InlineData("OK|84", true, 84u, 0)]
+    [InlineData("OK|100", true, 100u, 0)]
+    [InlineData("ERR|5", false, 0u, 5)]
+    [InlineData("ERR|2", false, 0u, 2)]
+    public void BrokerProtocolParsesSuccessAndErrorReplies(
+        string wire, bool success, uint percent, int errorCode)
+    {
+        Assert.True(TrackpadBatteryBroker.TryParseBatteryResponse(wire, out var reply));
+        Assert.Equal(success, reply.Success);
+        Assert.Equal(percent, reply.Percent);
+        Assert.Equal(errorCode, reply.ErrorCode);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("PONG")]
+    [InlineData("OK|101")]
+    [InlineData("OK|not-a-number")]
+    [InlineData("ERR|negative")]
+    [InlineData("UNKNOWN|5")]
+    public void BrokerProtocolRejectsMalformedBatteryReplies(string? wire)
+    {
+        Assert.False(TrackpadBatteryBroker.TryParseBatteryResponse(wire, out _));
+    }
+
     [Fact]
     public void DeviceUsesTrackpad2Identity()
     {
