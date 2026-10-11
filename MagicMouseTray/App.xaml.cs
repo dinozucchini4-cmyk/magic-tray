@@ -79,11 +79,25 @@ public partial class App
         }
 
         _brokerCancellation = new CancellationTokenSource();
-        _brokerTask = TrackpadBatteryBroker.RunServerAsync(_brokerCancellation.Token);
+        _brokerTask = TrackpadBatteryBroker.RunServerAsync(_brokerCancellation);
+        _ = _brokerTask.ContinueWith(
+            _ =>
+            {
+                try { Dispatcher.BeginInvoke(new Action(Shutdown)); }
+                catch (InvalidOperationException) { }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.None,
+            TaskScheduler.Default);
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        // When the user quits the unelevated tray, stop the same-user elevated
+        // broker through its fixed STOP command rather than leaving it running.
+        if (_ownsMutex)
+            TrackpadBatteryBroker.StopIfRunning();
+
         _brokerCancellation?.Cancel();
         try { _brokerTask?.Wait(TimeSpan.FromSeconds(1)); } catch { }
         _brokerCancellation?.Dispose();
