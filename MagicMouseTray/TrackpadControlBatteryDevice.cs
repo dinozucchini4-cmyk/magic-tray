@@ -66,13 +66,15 @@ internal sealed class TrackpadControlBatteryDevice : IBatteryDevice
     }
 
     // Returns 0..100 only for a successful, complete, valid ULONG result.
-    // -2 means the Trackpad is known to be present, but this alternate report
-    // path is unavailable/blocked. DeviceRegistry adds this provider only when
-    // the PID 0265 HID device is present; the existing direct HID provider
-    // remains in place and wins if it returns a real percentage.
+    // Missing control device (Win32 2/3) is -1 so it does not override another
+    // provider's result. Other failures are -2 ("present but unreadable/blocked").
+    // The existing direct HID provider remains in place and wins if it returns
+    // a real percentage.
     internal static int Normalize(TrackpadBatteryControlReply reply)
     {
-        if (!reply.Success || reply.BytesReturned < sizeof(uint) || reply.Percent > 100)
+        if (!reply.Success)
+            return reply.ErrorCode is 2 or 3 ? -1 : -2;
+        if (reply.BytesReturned < sizeof(uint) || reply.Percent > 100)
             return -2;
 
         return (int)reply.Percent;
