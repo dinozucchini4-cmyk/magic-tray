@@ -17,6 +17,7 @@ internal static class TrackpadBatteryBroker
     const string PipeName = "OwnMagicUtilities.TrackpadBattery.v1";
     const string BatteryRequest = "GET_BATTERY_0265";
     const string PingRequest = "PING";
+    const string StopRequest = "STOP";
 
     internal static bool IsRunning()
     {
@@ -33,6 +34,12 @@ internal static class TrackpadBatteryBroker
             return false;
 
         return TryParseBatteryResponse(response, out reply);
+    }
+
+    internal static void StopIfRunning()
+    {
+        if (IsRunning())
+            _ = TryRequest(StopRequest, out _);
     }
 
     internal static bool TryParseBatteryResponse(
@@ -147,8 +154,9 @@ internal static class TrackpadBatteryBroker
         }
     }
 
-    internal static async Task RunServerAsync(CancellationToken cancellationToken)
+    internal static async Task RunServerAsync(CancellationTokenSource brokerCancellation)
     {
+        CancellationToken cancellationToken = brokerCancellation.Token;
         Logger.Log("TRACKPAD_BATTERY_BROKER_START");
 
         while (!cancellationToken.IsCancellationRequested)
@@ -178,10 +186,16 @@ internal static class TrackpadBatteryBroker
                 {
                     PingRequest => "PONG",
                     BatteryRequest => GetBatteryResponse(),
+                    StopRequest => "STOPPED",
                     _ => "ERR|87"
                 };
 
                 await writer.WriteLineAsync(response).ConfigureAwait(false);
+                if (request == StopRequest)
+                {
+                    brokerCancellation.Cancel();
+                    break;
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
