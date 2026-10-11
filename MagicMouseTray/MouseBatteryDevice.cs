@@ -43,7 +43,8 @@ internal sealed class MouseBatteryDevice : IBatteryDevice
         new("000205AC", "PID&0310", "Apple Wireless Mouse", DeviceKind.MagicMouseV1), // BT AWM
         new("VID_05AC",  "PID_0310", "Apple Wireless Mouse", DeviceKind.MagicMouseV1), // USB AWM
         // PIDs below: numeric facts only from hid-ids.h (GPL) — no kernel code/comments copied.
-        new("000205AC", "PID&0265", "Magic Trackpad 2",   DeviceKind.MagicTrackpadV2), // BT v2
+        new("000205AC", "PID&0265", "Magic Trackpad 2",   DeviceKind.MagicTrackpadV2), // BT-classic v2
+        new("0001004C", "PID&0265", "Magic Trackpad 2",   DeviceKind.MagicTrackpadV2), // BLE v2 (observed from target device path)
         new("VID_05AC",  "PID_0265", "Magic Trackpad 2",   DeviceKind.MagicTrackpadV2), // USB v2
         new("000205AC", "PID&030E", "Magic Trackpad",     DeviceKind.MagicTrackpadV1), // BT v1
         new("VID_05AC",  "PID_030E", "Magic Trackpad",     DeviceKind.MagicTrackpadV1), // USB v1
