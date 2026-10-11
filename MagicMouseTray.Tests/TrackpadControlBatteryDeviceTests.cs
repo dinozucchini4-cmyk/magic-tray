@@ -73,6 +73,19 @@ public class TrackpadControlBatteryDeviceTests
         Assert.Equal(DeviceKind.MagicTrackpadV2, withTrackpad[1].Kind);
     }
 
+    [Fact]
+    public void DiscoverRecognizesObservedBleTrackpad2Path()
+    {
+        const string path = @"\\?\hid#{00001124-0000-1000-8000-00805f9b34fb}_vid&0001004c_pid&0265&col02#9&2ac49406&4&0001#{4d1e55b2-f16f-11cf-88cb-001111000030}";
+
+        var found = DeviceRegistry.DiscoverFromPaths([path]);
+
+        Assert.Single(found);
+        Assert.Equal(DeviceKind.MagicTrackpadV2, found[0].Kind);
+        Assert.Equal("0265", found[0].Pid);
+        Assert.Equal("Magic Trackpad 2", found[0].DeviceName);
+    }
+
     private sealed class FakeTransport(TrackpadBatteryControlReply reply)
         : ITrackpadBatteryControlTransport
     {
