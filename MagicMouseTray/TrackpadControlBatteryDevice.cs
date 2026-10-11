@@ -28,15 +28,24 @@ internal sealed class TrackpadControlBatteryDevice : IBatteryDevice
     internal const string ControlDevicePath = @"\\.\AmtPtpControlDeviceUm";
 
     readonly ITrackpadBatteryControlTransport _transport;
+    readonly bool _allowBrokerFallback;
 
     internal TrackpadControlBatteryDevice()
-        : this(new Win32TrackpadBatteryControlTransport())
+        : this(new Win32TrackpadBatteryControlTransport(), allowBrokerFallback: true)
     {
     }
 
     internal TrackpadControlBatteryDevice(ITrackpadBatteryControlTransport transport)
+        : this(transport, allowBrokerFallback: false)
+    {
+    }
+
+    TrackpadControlBatteryDevice(
+        ITrackpadBatteryControlTransport transport,
+        bool allowBrokerFallback)
     {
         _transport = transport ?? throw new ArgumentNullException(nameof(transport));
+        _allowBrokerFallback = allowBrokerFallback;
     }
 
     public string DeviceName => "Magic Trackpad 2";
@@ -54,6 +63,15 @@ internal sealed class TrackpadControlBatteryDevice : IBatteryDevice
         {
             Logger.Log($"TRACKPAD_CONTROL_BATTERY_ERROR err={ex.GetBaseException().Message}");
             return -2;
+        }
+
+        // The upstream control device is ACL-restricted to Administrators and
+        // SYSTEM. Keep the tray unelevated: only after Access Denied, ask the
+        // separate opt-in elevated broker for this fixed read-only operation.
+        if (!reply.Success && reply.ErrorCode == 5 && _allowBrokerFallback &&
+            TrackpadBatteryBroker.TryReadBattery(out var brokerReply))
+        {
+            reply = brokerReply;
         }
 
         var normalized = Normalize(reply);
@@ -79,6 +97,11 @@ internal sealed class TrackpadControlBatteryDevice : IBatteryDevice
 
         return (int)reply.Percent;
     }
+
+    // Called only inside the elevated broker process; it performs the same fixed
+    // GET_BATTERY query without trying to connect back to the unelevated tray.
+    internal static TrackpadBatteryControlReply ReadBatteryReplyDirect() =>
+        new Win32TrackpadBatteryControlTransport().ReadBattery();
 
     private sealed class Win32TrackpadBatteryControlTransport : ITrackpadBatteryControlTransport
     {
